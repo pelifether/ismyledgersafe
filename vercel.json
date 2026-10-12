@@ -4,7 +4,8 @@
   "outputDirectory": "public",
   "functions": {
     "api/check.js": { "maxDuration": 120 },
-    "api/share.js": { "maxDuration": 30 }
+    "api/share.js": { "maxDuration": 30 },
+    "api/status.js": { "maxDuration": 10 }
   },
   "headers": [
     {

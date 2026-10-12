@@ -21,8 +21,17 @@ Verdicts: `tampered`, `suspicious`, `no_implant_seen` (never "safe": this is a v
    - `RECEIPT_SECRET`: a long random string. It signs the receipts.
    - `ANTHROPIC_MODEL` (optional): defaults to `claude-opus-5-5`.
    - `ANTHROPIC_EFFORT` (optional): defaults to `high`.
-3. Storage → create a **Blob** store, choose **private**, and connect it to the project. This sets `BLOB_READ_WRITE_TOKEN`. If you made a public store, also set `BLOB_ACCESS=public`.
-4. Firewall → add a rate-limit rule on `/api/check` (for example, 10 requests per 10 minutes per IP). The function also has a per-instance limit, but that alone is not enough to cap API spend.
+3. Storage → create a **Blob** store, choose **private**, and connect it to the project (Production and Preview). OIDC stores give the project `BLOB_STORE_ID` and the SDK signs in by itself; token stores give `BLOB_READ_WRITE_TOKEN`. Either works. If you made a public store, also set `BLOB_ACCESS=public`.
+4. In the Anthropic Console, set a monthly spend limit on the workspace the key belongs to. That is the hard backstop.
+
+## Abuse limits
+
+`/api/check` is the only route that spends money. It refuses:
+- requests sent from other websites (`Origin` / `Sec-Fetch-Site`);
+- bursts: more than 8 checks in 10 minutes from one IP on one function instance;
+- more than `DAILY_CHECKS_PER_VISITOR` (default 20) checks a day from one IP, and more than `DAILY_CHECKS` (default 300) a day across the site. These are counted in the Blob store under `usage/<day>/<visitor>/` (the visitor is a salted hash of the IP, never the IP), so they hold across all instances.
+
+Invalid requests are rejected before they count. `GET /api/status` shows whether everything is set up and today's use, without calling the model. For more, add a rate-limit rule on `/api/check` in Vercel → Firewall, and turn on Attack Challenge Mode there if the site is ever flooded.
 
 `npm run export` (with `BLOB_READ_WRITE_TOKEN` set) downloads all shared submissions to `./research/`.
 

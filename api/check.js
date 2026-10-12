@@ -1,10 +1,12 @@
 // POST /api/check { photos: [dataURL, ...] } -> { id, result, receipt }
 // Photos are sent to Claude and not stored.
 import { analyze, MODEL } from "../lib/analyze.js";
-import { fail, json, limited, newId, parsePhotos, sign } from "../lib/http.js";
+import { fail, foreign, json, limited, newId, parsePhotos, sign } from "../lib/http.js";
+import { spend } from "../lib/quota.js";
 import { mock } from "../lib/mock.js";
 
 export async function POST(request) {
+  if (foreign(request)) return fail(403, "Forbidden.");
   if (limited(request)) return fail(429, "Too many checks. Try again in a few minutes.");
   let body;
   try {
@@ -17,6 +19,8 @@ export async function POST(request) {
 
   const live = Boolean(process.env.ANTHROPIC_API_KEY);
   if (!live && process.env.MOCK !== "1") return fail(503, "The checker is not set up yet.");
+  const over = await spend(request);
+  if (over) return fail(429, over);
   let result;
   try {
     result = live ? await analyze(photos) : mock(photos.length);
@@ -25,8 +29,7 @@ export async function POST(request) {
     if (error?.status === 422) return fail(422, "These photos could not be checked.");
     return fail(502, "The check failed. Try again.");
   }
-  const shown = result;
   const id = newId();
   const receipt = sign({ id, at: Date.now(), model: live ? MODEL : "mock", result, photos: photos.map((p) => p.sha) });
-  return json({ id, result: shown, receipt });
+  return json({ id, result, receipt });
 }

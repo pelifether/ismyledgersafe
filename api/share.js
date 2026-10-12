@@ -2,15 +2,18 @@
 // Only called when the owner opts in. Stores the photos and the verdict they
 // got in Vercel Blob under research/<date>/<id>/.
 import { put } from "@vercel/blob";
-import { blobToken, fail, json, limited, parsePhotos, verify } from "../lib/http.js";
+import { blobToken, fail, foreign, json, limited, parsePhotos, verify } from "../lib/http.js";
+import { storageReady } from "../lib/quota.js";
 
 const SOURCES = ["", "ledger.com", "amazon", "retail_store", "authorized_reseller", "marketplace", "second_hand", "gift_other"];
 const EXT = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
 
 export async function POST(request) {
+  if (foreign(request)) return fail(403, "Forbidden.");
   if (limited(request, { max: 12 })) return fail(429, "Too many requests.");
-  const token = blobToken();
-  if (!token) return fail(503, "Research storage is not set up.");
+  if (!storageReady()) return fail(503, "Research storage is not set up.");
+  // With OIDC (BLOB_STORE_ID) the SDK finds its own credentials.
+  const token = blobToken() || undefined;
   let body;
   try {
     body = await request.json();
