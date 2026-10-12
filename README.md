@@ -33,6 +33,8 @@ Verdicts: `tampered`, `suspicious`, `no_implant_seen` (never "safe": this is a v
 
 Invalid requests are rejected before they count. `GET /api/status` shows whether everything is set up and today's use, without calling the model. For more, add a rate-limit rule on `/api/check` in Vercel → Firewall, and turn on Attack Challenge Mode there if the site is ever flooded.
 
+To see if a deploy is set up: `curl https://ismyledgersafe.vercel.app/api/status` should show `"checker":true,"storage":true`.
+
 `npm run export` (with `BLOB_READ_WRITE_TOKEN` set) downloads all shared submissions to `./research/`.
 
 ## Local
