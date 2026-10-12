@@ -5,6 +5,7 @@
 // lead taped over the battery, power-tap wires from the battery, and an implant
 // board (LTE module, MCU, eSIM, U.FL socket) stacked on the main board.
 import * as k from "./kit/iso-kit.mjs";
+import { centreOf, plan, tools } from "./tools.mjs";
 
 export const WIDTH = 640;
 export const HEIGHT = 470;
@@ -75,63 +76,9 @@ export const P = k.fitProjection(
   { pad: 14, azimuth: 62, elevation: 32 },
 );
 
-const at = (point) => k.iso(point, P);
-const S = (paths, style) => k.solidSvg(paths, style);
-const L = (d, style) => k.lineSvg(d, style);
-const D = (points, style) => k.dotsSvg(points, style);
-const byDepth = (items, pick = (item) => item) =>
-  [...items].sort((a, b) => k.depthOf([...pick(a).slice(0, 2), 0], P) - k.depthOf([...pick(b).slice(0, 2), 0], P));
-const plan = (x, y, w, d, r = 0.6) => ({ x, y, w, d, r });
-const centreOf = (p) => [p.x + p.w / 2, p.y + p.d / 2];
+const { at, S, L, D, byDepth, chip, passives, cavity, sweep, meander, leadSvg, mat: matOf } = tools(P);
 
-// A chip: a low slab, an inset marking outline and a pin-1 dot.
-function chip(p, z, h, { tone = "hi", pins = 0, dot = true, lit = false, className } = {}) {
-  const out = [S(k.slabOf(p, z, h, P, 2, 0.4), { tone, crease: "lo", lit, className })];
-  if (pins) {
-    const step = p.w / (pins + 1);
-    const legs = [];
-    for (let index = 1; index <= pins; index++) {
-      legs.push(k.lineOnTop([p.x + step * index, p.y + p.d], [p.x + step * index, p.y + p.d + 1.6], z, P));
-      legs.push(k.lineOnTop([p.x + p.w, p.y + (p.d / (pins + 1)) * index], [p.x + p.w + 1.6, p.y + (p.d / (pins + 1)) * index], z, P));
-    }
-    out.push(L(legs.join(""), { tone: "lo" }));
-  }
-  if (dot) out.push(D([at([p.x + 2.4, p.y + 2.4, z + h])], { size: 0.5, tone: "mid" }));
-  return out.join("");
-}
-
-// Small passives scattered along a board: 0402s as 4 x 2 slabs.
-function passives(list, z) {
-  return byDepth(list)
-    .map(([x, y, turn]) => {
-      const p = turn ? plan(x, y, 2.2, 4.2, 0.3) : plan(x, y, 4.2, 2.2, 0.3);
-      return S(k.slabOf(p, z, 1.6, P, 2), { tone: "mid", crease: "none" });
-    })
-    .join("");
-}
-
-function mat() {
-  const out = [`<path class="iso-halo" d="${k.haloOf(MAT, -MAT_H, MAT_H, P)}"/>`];
-  out.push(S(k.slabOf(MAT, -MAT_H, MAT_H, P, 8, 1.2), { tone: "lo", crease: "faint" }));
-  out.push(L(k.planOutline(k.insetPlan(MAT, 6), 0, P), { tone: "faint" }));
-  const strip = { x: MAT.x + 16, y: MAT.y + MAT.d - 16, w: MAT.w - 32, d: 7, r: 1 };
-  out.push(S(k.slabOf(strip, 0, 0.4, P, 3), { tone: "lo", crease: "none" }));
-  const ticks = k.topTicks(strip.x + 4, strip.x + strip.w - 4, MM, 5, strip.y + 0.6, 0.4, [2, 4], P);
-  out.push(L(ticks.minor, { tone: "faint" }), L(ticks.major, { tone: "lo" }));
-  // Screw cups along the far edge, as on a magnetic repair mat.
-  const cups = [[174, -40], [174, -6], [-174, 26]];
-  for (const [x, y] of byDepth(cups)) {
-    out.push(L(k.ring(x, y, 11, 0, P, 40), { tone: "lo" }));
-    out.push(L(k.ring(x, y, 7, 0, P, 32), { tone: "faint" }));
-  }
-  // Screws out of the case, lying in the first cup.
-  for (const [x, y] of byDepth([[170, -43], [178, -37]])) {
-    out.push(S(k.cylinder(x, y, 2.4, 0, 1.4, P, 16), { tone: "mid", crease: "none" }));
-    out.push(L(k.lineOnTop([x - 1.4, y], [x + 1.4, y], 1.4, P), { tone: "lo" }));
-  }
-  out.push(D(k.corners(MAT, 10).map(([x, y]) => at([x, y, 0])), { size: 0.5, tone: "lo" }));
-  return out.join("");
-}
+const mat = () => matOf(MAT, MAT_H, MM, [[174, -40], [174, -6], [-174, 26]], [[170, -43], [178, -37]]);
 
 function shell() {
   const out = [`<path class="iso-halo" d="${k.haloOf(SHELL, 0, RIM, P)}"/>`];
@@ -139,58 +86,13 @@ function shell() {
   // USB-C opening in the right end wall, and the lanyard eye at the left.
   out.push(L(k.sideRing([SHELL.x + SHELL.w, 0, 13], 5.2, "x", P), { tone: "lo" }));
   // Seen through the opening: wall faces, then the floor.
-  const opening = k.ringOf(INNER, 8).map(([x, y]) => at([x, y, RIM]));
-  out.push(`<path class="lg-wall" d="${poly(opening)}"/>`);
-  out.push(S(k.slabOf(INNER, FLOOR - 0.1, 0.1, P, 8), { tone: "lo", crease: "none", flat: true, className: "lg-floor" }));
-  out.push(L(k.planOutline(INNER, RIM, P, 8), { tone: "lo" }));
+  out.push(cavity(INNER, RIM, FLOOR));
   return out.join("");
-}
-
-const poly = (points) => "M" + points.map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join("L") + "Z";
-
-// The opening swept straight up the screen: anything inside the shell is seen
-// only through it, and anything that has lifted clear is never cut.
-export function sweepClip() {
-  const opening = k.ringOf(INNER, 8).map(([x, y]) => at([x, y, RIM]));
-  const swept = [...opening, ...opening.map(([x, y]) => [x, y - 2000])];
-  return poly(hull(swept));
-}
-
-function hull(points) {
-  const pts = [...points].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-  const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
-  const lower = [];
-  for (const p of pts) {
-    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop();
-    lower.push(p);
-  }
-  const upper = [];
-  for (const p of pts.reverse()) {
-    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop();
-    upper.push(p);
-  }
-  return [...lower.slice(0, -1), ...upper.slice(0, -1)];
 }
 
 function antenna() {
   const z = FLOOR;
-  const out = [S(k.slabOf(ANTENNA, z, 0.6, P, 3), { tone: "hi", crease: "none", className: "lg-bad" })];
-  // Meander trace of the LTE antenna.
-  const lines = [];
-  const x0 = ANTENNA.x + 6;
-  const x1 = ANTENNA.x + ANTENNA.w - 6;
-  let y = ANTENNA.y + 6;
-  let left = true;
-  const path = [[x0, y]];
-  while (y + 8 < ANTENNA.y + ANTENNA.d - 12) {
-    path.push([left ? x1 : x0, y]);
-    y += 8;
-    path.push([left ? x1 : x0, y]);
-    left = !left;
-  }
-  lines.push(k.onTop(path, z + 0.6, P));
-  out.push(L(lines.join(""), { tone: "red" }));
-  out.push(D([at([...path[0], z + 0.6])], { size: 0.7, tone: "hi" }));
+  const out = [meander(ANTENNA, z)];
   out.push(k.faceTextSvg(k.topMatrix([ANTENNA.x + 5, ANTENNA.y + ANTENNA.d - 4], z + 0.6, P, "x"), "AC-A2205-NANO-X", { size: 3.4, tone: "lo" }));
   // Ground pad the coax is soldered to.
   out.push(S(k.slabOf(plan(88, -4, 8, 8, 1), z + 0.6, 0.6, P, 2), { tone: "hi", crease: "none", className: "lg-bad" }));
@@ -337,26 +239,15 @@ function cover() {
   return out.join("");
 }
 
-// Paths that live code rebuilds every frame: the coax and the tap wires, which
-// stretch from the lower shell up to the implant as it lifts.
-export function leadPoints(kind, lift) {
-  const rise = IMPLANT_Z + lift;
-  if (kind === "coax") {
-    const [sx, sy] = SOCKET;
-    return [...COAX_FLOOR, [34, LEAD_Y, rise - 1.2], [sx + 2, LEAD_Y + 2, rise + 0.6], [sx, sy - 2.8, IMPLANT_TOP + lift + 3]];
-  }
-  const [px, py] = TAP_PAD;
-  return [...TAP_FLOOR, [-92, LEAD_Y, rise - 1.2], [px - 2, LEAD_Y + 2, rise + 0.6], [px, py, IMPLANT_TOP + lift + 0.6]];
-}
+// The coax and the tap wires stretch from the lower shell up to the implant as
+// it lifts: fixed points, then a tail that rides the implant.
+const [SX, SY] = SOCKET;
+export const LEADS = {
+  coax: { find: "coax_cable", floor: COAX_FLOOR, tail: [[34, LEAD_Y, IMPLANT_Z - 1.2], [SX + 2, LEAD_Y + 2, IMPLANT_Z + 0.6], [SX, SY - 2.8, IMPLANT_TOP + 3]] },
+  tap: { find: "power_tap_wires", floor: TAP_FLOOR, tail: [[-92, LEAD_Y, IMPLANT_Z - 1.2], [TAP_PAD[0] - 2, LEAD_Y + 2, IMPLANT_Z + 0.6], [TAP_PAD[0], TAP_PAD[1], IMPLANT_TOP + 0.6]] },
+};
 
 export function figure() {
-  const clip = sweepClip();
-  const lead = (kind) => {
-    const points = leadPoints(kind, 0).map(at);
-    const d = poly(points).replace(/Z$/, "");
-    const find = kind === "coax" ? "coax_cable" : "power_tap_wires";
-    return `<g class="lg-bad lg-lead" data-find="${find}"><path class="iso-line lg-lead-${kind}" data-tone="red" d="${d}"/><circle class="iso-wire-end" cx="${points[0][0].toFixed(1)}" cy="${points[0][1].toFixed(1)}" r="1.1"/></g>`;
-  };
   const group = (name, art) => `<g data-part="${name}">${art}</g>`;
   return k.figureSvg({
     width: WIDTH,
@@ -364,15 +255,15 @@ export function figure() {
     label:
       "A Ledger Nano X taken apart on a repair mat. The top cover, the screen and the main board lift out of the lower shell. In a tampered unit an extra board with an LTE modem, a second microcontroller and an eSIM sits on the main board, a coax lead runs over the battery to an antenna glued inside the shell, and red wires tap the battery.",
     body: [
-      `<defs><clipPath id="lg-inside"><path d="${clip}"/></clipPath></defs>`,
+      `<defs><clipPath id="nx-inside"><path d="${sweep(INNER, RIM)}"/></clipPath></defs>`,
       mat(),
       shell(),
-      `<g clip-path="url(#lg-inside)">`,
+      `<g clip-path="url(#nx-inside)">`,
       antenna(),
       battery(),
       tapWires(),
-      lead("coax"),
-      lead("tap"),
+      leadSvg(LEADS.coax, "coax", LEADS.coax.find),
+      leadSvg(LEADS.tap, "tap", LEADS.tap.find),
       group("pcb", pcb()),
       group("implant", implant()),
       group("oled", oled()),
@@ -381,3 +272,5 @@ export function figure() {
     ],
   });
 }
+
+export const NANO_X = { id: "nano_x", title: "Nano X", P, LIFT, STAGGER, SPRING, LEADS, ride: "implant", figure };

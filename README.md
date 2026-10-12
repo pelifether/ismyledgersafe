@@ -2,7 +2,7 @@
 
 A one-page site where people post photos of an opened hardware wallet and get a quick visual verdict: does it carry the implanted LTE spyware build that has been found in Ledger devices sold through resellers?
 
-The page shows an exploded isometric Ledger Nano X (built with the [anatomy](https://skills.wheresryan.sh/anatomy) skill). The implant parts are drawn in red: the extra board with the nRF9151 LTE module, the second MCU and the eSIM, the U.FL socket, the coax over the battery, the antenna glued in the case, and the power-tap wires. After a check, the figure lights up only the parts that were found.
+The page shows an exploded isometric Ledger Nano X and an opened Ledger Stax with its back cover beside it (built with the [anatomy](https://skills.wheresryan.sh/anatomy) skill; tabs switch between them, and a result switches to the detected model). The implant parts are drawn in red: the extra board with the nRF9151 LTE module, the second MCU and the eSIM, the U.FL socket, the coax over the battery, the antenna glued in the case, and the power-tap wires. After a check, the figure lights up only the parts that were found.
 
 ## How it works
 

@@ -4,106 +4,117 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as k from "./kit/iso-kit.mjs";
-import * as F from "./ledger.mjs";
+import { NANO_X } from "./nano-x.mjs";
+import { STAX } from "./stax.mjs";
+
+const FIGURES = [NANO_X, STAX];
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, "..", "public");
 const kitScript = () => readFileSync(join(HERE, "kit", "iso-kit.mjs"), "utf8").replace(/^export /gm, "");
 
-const svg = F.figure();
 
 const live = `
-const P = ${JSON.stringify(F.P)};
-const LIFT = ${JSON.stringify(F.LIFT)};
-const STAGGER = ${JSON.stringify(F.STAGGER)};
-const SPRING = ${JSON.stringify(F.SPRING)};
-const IMPLANT_Z = ${F.IMPLANT_Z}, IMPLANT_TOP = ${F.IMPLANT_TOP}, LEAD_Y = ${F.LEAD_Y};
-const SOCKET = ${JSON.stringify(F.SOCKET)}, TAP_PAD = ${JSON.stringify(F.TAP_PAD)};
-const COAX_FLOOR = ${JSON.stringify(F.COAX_FLOOR)}, TAP_FLOOR = ${JSON.stringify(F.TAP_FLOOR)};
-const leadPoints = ${F.leadPoints.toString().replace(/^function leadPoints/, "function")};
-
-const stage = document.querySelector(".iso-stage");
-const svg = stage.querySelector("svg");
+const FIGURES = ${JSON.stringify(FIGURES.map(({ id, title, P, LIFT, STAGGER, SPRING, LEADS, ride }) => ({ id, title, P, LIFT, STAGGER, SPRING, LEADS, ride })))};
 const readout = document.querySelector("[data-readout]");
+const title = document.querySelector('[data-corner="fig"]');
 const still = matchMedia("(prefers-reduced-motion: reduce)");
-const parts = Object.fromEntries(STAGGER.map((name) => [name, { el: svg.querySelector('[data-part="' + name + '"]'), x: 0, v: 0, target: 0 }]));
-const leads = { coax: svg.querySelector(".lg-lead-coax"), tap: svg.querySelector(".lg-lead-tap") };
-let pending = [], clock = 0, last = 0, frame = 0, visible = false, open = false, touring = !still.matches, tourAt = 1.6, idleTimer = 0;
 let text = readout.textContent;
-
-function schedule(next) {
-  if (next === open && !pending.length) return;
-  open = next;
-  const value = next ? 1 : 0;
-  const order = next ? STAGGER : [...STAGGER].reverse();
-  pending = [];
-  order.filter((name) => parts[name].target !== value || parts[name].x !== value).forEach((name, index) => pending.push({ name, value, at: clock + index * SPRING.stagger }));
-  run();
-}
-function draw() {
-  for (const name of STAGGER) {
-    const part = parts[name];
-    if (part.x === 0) part.el.removeAttribute("transform");
-    else part.el.setAttribute("transform", translateAlong(P, [0, 0, LIFT[name] * part.x]));
-  }
-  const lift = LIFT.implant * parts.implant.x;
-  for (const kind of ["coax", "tap"]) {
-    const points = leadPoints(kind, lift).map((point) => iso(point, P));
-    leads[kind].setAttribute("d", "M" + points.map(([x, y]) => x.toFixed(1) + " " + y.toFixed(1)).join("L"));
-  }
-  stage.setAttribute("aria-pressed", open ? "true" : "false");
-}
-function tick(now) {
-  const dt = last ? Math.min((now - last) / 1000, 1 / 30) : 1 / 60;
-  last = now;
-  clock += dt;
-  if (touring && clock >= tourAt) { tourAt = clock + (open ? 2.6 : 3.4); schedule(!open); }
-  pending = pending.filter((item) => { if (clock >= item.at) { parts[item.name].target = item.value; return false; } return true; });
-  let moving = pending.length > 0;
-  for (const name of STAGGER) {
-    const part = parts[name];
-    if (still.matches) { part.x = part.target; part.v = 0; continue; }
-    const h = dt / SPRING.substeps;
-    for (let i = 0; i < SPRING.substeps; i++) { part.v += ((part.target - part.x) * SPRING.stiffness - part.v * SPRING.damping) * h; part.x += part.v * h; }
-    if (Math.abs(part.target - part.x) < 0.0005 && Math.abs(part.v) < 0.0005) { part.x = part.target; part.v = 0; } else moving = true;
-  }
-  draw();
-  frame = visible && (moving || touring) ? requestAnimationFrame(tick) : 0;
-}
-function run() { if (!frame && visible) { last = 0; frame = requestAnimationFrame(tick); } }
-function hold() {
-  touring = false;
-  clearTimeout(idleTimer);
-  if (stage.dataset.mode === "idle") idleTimer = setTimeout(() => { touring = !still.matches; tourAt = clock + 1; run(); }, 6000);
-}
-new IntersectionObserver((entries) => { visible = entries[entries.length - 1].isIntersecting; if (visible) run(); }, { rootMargin: "120px 0px" }).observe(stage);
-stage.addEventListener("click", () => { hold(); schedule(!open); });
-stage.addEventListener("keydown", (event) => {
-  if (event.key === " " || event.key === "Enter" || event.key === "e" || event.key === "E") { event.preventDefault(); hold(); schedule(!open); }
-});
 function say(next) { if (next !== text) { text = next; readout.textContent = next; } }
+const linePath = (points) => "M" + points.map(([x, y]) => x.toFixed(1) + " " + y.toFixed(1)).join("L");
 
-// The page drives the figure through this: idle (shows the spyware build),
+// One exploded figure: springs per assembly, staggered, and the leads that
+// stretch as the implant lifts.
+function mount(cfg) {
+  const { P, LIFT, STAGGER, SPRING, LEADS } = cfg;
+  const stage = document.querySelector('.iso-stage[data-device="' + cfg.id + '"]');
+  const svg = stage.querySelector("svg");
+  const parts = Object.fromEntries(STAGGER.map((name) => [name, { el: svg.querySelector('[data-part="' + name + '"]'), x: 0, v: 0, target: 0 }]));
+  const leads = Object.keys(LEADS).map((kind) => ({ lead: LEADS[kind], el: svg.querySelector('[data-lead="' + kind + '"]') }));
+  let pending = [], clock = 0, last = 0, frame = 0, visible = false, open = false, touring = !still.matches, tourAt = 1.6, idleTimer = 0;
+  function schedule(next) {
+    if (next === open && !pending.length) return;
+    open = next;
+    const value = next ? 1 : 0;
+    const order = next ? STAGGER : [...STAGGER].reverse();
+    pending = [];
+    order.filter((name) => parts[name].target !== value || parts[name].x !== value).forEach((name, index) => pending.push({ name, value, at: clock + index * SPRING.stagger }));
+    run();
+  }
+  function draw() {
+    for (const name of STAGGER) {
+      const part = parts[name];
+      if (part.x === 0) part.el.removeAttribute("transform");
+      else part.el.setAttribute("transform", translateAlong(P, (Array.isArray(LIFT[name]) ? LIFT[name] : [0, 0, LIFT[name]]).map((v) => v * part.x)));
+    }
+    const lift = LIFT[cfg.ride] * parts[cfg.ride].x;
+    for (const { lead, el } of leads) el.setAttribute("d", linePath([...lead.floor, ...lead.tail.map(([x, y, z]) => [x, y, z + lift])].map((point) => iso(point, P))));
+    stage.setAttribute("aria-pressed", open ? "true" : "false");
+  }
+  function tick(now) {
+    const dt = last ? Math.min((now - last) / 1000, 1 / 30) : 1 / 60;
+    last = now;
+    clock += dt;
+    if (touring && clock >= tourAt) { tourAt = clock + (open ? 2.6 : 3.4); schedule(!open); }
+    pending = pending.filter((item) => { if (clock >= item.at) { parts[item.name].target = item.value; return false; } return true; });
+    let moving = pending.length > 0;
+    for (const name of STAGGER) {
+      const part = parts[name];
+      if (still.matches) { part.x = part.target; part.v = 0; continue; }
+      const h = dt / SPRING.substeps;
+      for (let i = 0; i < SPRING.substeps; i++) { part.v += ((part.target - part.x) * SPRING.stiffness - part.v * SPRING.damping) * h; part.x += part.v * h; }
+      if (Math.abs(part.target - part.x) < 0.0005 && Math.abs(part.v) < 0.0005) { part.x = part.target; part.v = 0; } else moving = true;
+    }
+    draw();
+    frame = visible && (moving || touring) ? requestAnimationFrame(tick) : 0;
+  }
+  function run() { if (!frame && visible) { last = 0; frame = requestAnimationFrame(tick); } }
+  function hold() {
+    touring = false;
+    clearTimeout(idleTimer);
+    if (stage.dataset.mode === "idle") idleTimer = setTimeout(() => { touring = !still.matches; tourAt = clock + 1; run(); }, 6000);
+  }
+  new IntersectionObserver((entries) => { visible = entries[entries.length - 1].isIntersecting; if (visible) run(); }, { rootMargin: "120px 0px" }).observe(stage);
+  stage.addEventListener("click", () => { hold(); schedule(!open); });
+  stage.addEventListener("keydown", (event) => {
+    if (event.key === " " || event.key === "Enter" || event.key === "e" || event.key === "E") { event.preventDefault(); hold(); schedule(!open); }
+  });
+  draw();
+  return {
+    stage,
+    setMode(mode, finds) {
+      stage.dataset.mode = mode;
+      for (const node of svg.querySelectorAll("[data-find]")) node.toggleAttribute("data-hit", finds.includes(node.dataset.find));
+      if (mode === "idle") { touring = !still.matches; tourAt = clock + 1; run(); return; }
+      touring = false;
+      clearTimeout(idleTimer);
+      schedule(true);
+    },
+    focus(find) { for (const node of svg.querySelectorAll("[data-find]")) node.toggleAttribute("data-focus", node.dataset.find === find); },
+  };
+}
+
+const figures = Object.fromEntries(FIGURES.map((cfg) => [cfg.id, mount(cfg)]));
+const tabs = document.querySelectorAll("[data-show]");
+function show(id) {
+  if (!figures[id]) return;
+  for (const [key, fig] of Object.entries(figures)) fig.stage.hidden = key !== id;
+  for (const tab of tabs) tab.setAttribute("aria-selected", String(tab.dataset.show === id));
+  title.textContent = FIGURES.find((cfg) => cfg.id === id).title;
+}
+for (const tab of tabs) tab.addEventListener("click", () => show(tab.dataset.show));
+
+// The page drives the figures through this: idle (shows the spyware build),
 // scan (opens and holds), clean, tampered (lights the parts that were found),
 // unclear.
 window.ledgerFigure = {
+  show,
   setMode(mode, { finds = [], label = "" } = {}) {
-    stage.dataset.mode = mode;
-    for (const node of svg.querySelectorAll("[data-find]")) {
-      if (finds.includes(node.dataset.find)) node.setAttribute("data-hit", "");
-      else node.removeAttribute("data-hit");
-    }
+    for (const fig of Object.values(figures)) fig.setMode(mode, finds);
     say(label);
-    if (mode === "idle") { touring = !still.matches; tourAt = clock + 1; run(); return; }
-    touring = false;
-    clearTimeout(idleTimer);
-    schedule(true);
   },
-  focus(find) {
-    for (const node of svg.querySelectorAll("[data-find]")) node.toggleAttribute("data-focus", node.dataset.find === find);
-  },
+  focus(find) { for (const fig of Object.values(figures)) fig.focus(find); },
 };
-draw();
 `;
 
 const figure = k.plateHtml({
@@ -111,7 +122,7 @@ const figure = k.plateHtml({
   title: "",
   hint: "Tap to open",
   readout: "spyware build",
-  body: `<div class="iso-stage" tabindex="0" role="button" aria-pressed="false" data-mode="idle" aria-label="Exploded Ledger Nano X. Press to open or close.">${svg}</div>`,
+  body: FIGURES.map((cfg, index) => `<div class="iso-stage" data-device="${cfg.id}" tabindex="0" role="button" aria-pressed="false" data-mode="idle" aria-label="Exploded Ledger ${cfg.title}. Press to open or close."${index ? " hidden" : ""}>${cfg.figure()}</div>`).join(""),
 });
 
 const icon = (name) => `<svg class="ic" aria-hidden="true"><use href="#i-${name}"/></svg>`;
@@ -128,6 +139,7 @@ const ICONS = `<svg width="0" height="0" style="position:absolute" aria-hidden="
 const body = `${ICONS}
 <main class="page">
   <header class="top"><h1>Is my Ledger safe?</h1></header>
+  <div class="models" role="tablist" aria-label="Device">${FIGURES.map((cfg, index) => `<button type="button" role="tab" data-show="${cfg.id}" aria-selected="${index === 0}">${cfg.title}</button>`).join("")}</div>
   ${figure}
   <section class="intake" aria-label="Photos">
     <label class="drop" data-drop>

@@ -25,7 +25,7 @@ export async function POST(request) {
     if (error?.status === 422) return fail(422, "These photos could not be checked.");
     return fail(502, "The check failed. Try again.");
   }
-  const { observations, ...shown } = result;
+  const shown = result;
   const id = newId();
   const receipt = sign({ id, at: Date.now(), model: live ? MODEL : "mock", result, photos: photos.map((p) => p.sha) });
   return json({ id, result: shown, receipt });

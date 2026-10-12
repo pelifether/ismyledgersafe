@@ -146,6 +146,8 @@ function show(r, sent) {
   const codes = [...new Set(r.findings.map((f) => f.code))];
   const device = DEVICE[r.device] || "";
   const label = [device, r.verdict === "no_implant_seen" ? "no implant seen" : r.verdict === "cannot_tell" ? "can't tell" : `${codes.length} sign${codes.length === 1 ? "" : "s"}`].filter(Boolean).join(" · ");
+  const drawn = { nano_x: "nano_x", stax: "stax", flex: "stax", nano_gen5: "stax" }[r.device];
+  if (drawn) figure()?.show(drawn);
   figure()?.setMode(v.mode, { finds: codes, label });
 
   result.hidden = false;

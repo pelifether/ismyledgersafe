@@ -2,14 +2,15 @@
 // Only called when the owner opts in. Stores the photos and the verdict they
 // got in Vercel Blob under research/<date>/<id>/.
 import { put } from "@vercel/blob";
-import { fail, json, limited, parsePhotos, verify } from "../lib/http.js";
+import { blobToken, fail, json, limited, parsePhotos, verify } from "../lib/http.js";
 
 const SOURCES = ["", "ledger.com", "amazon", "retail_store", "authorized_reseller", "marketplace", "second_hand", "gift_other"];
 const EXT = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
 
 export async function POST(request) {
   if (limited(request, { max: 12 })) return fail(429, "Too many requests.");
-  if (!process.env.BLOB_READ_WRITE_TOKEN) return fail(503, "Research storage is not set up.");
+  const token = blobToken();
+  if (!token) return fail(503, "Research storage is not set up.");
   let body;
   try {
     body = await request.json();
@@ -40,9 +41,9 @@ export async function POST(request) {
   };
   try {
     await Promise.all(
-      photos.map((p, i) => put(`${base}/${meta.photos[i].file}`, Buffer.from(p.data, "base64"), { access, contentType: p.type, addRandomSuffix: false, allowOverwrite: true })),
+      photos.map((p, i) => put(`${base}/${meta.photos[i].file}`, Buffer.from(p.data, "base64"), { access, token, contentType: p.type, addRandomSuffix: false, allowOverwrite: true })),
     );
-    await put(`${base}/meta.json`, JSON.stringify(meta, null, 2), { access, contentType: "application/json", addRandomSuffix: false, allowOverwrite: true });
+    await put(`${base}/meta.json`, JSON.stringify(meta, null, 2), { access, token, contentType: "application/json", addRandomSuffix: false, allowOverwrite: true });
   } catch (error) {
     console.error("blob put failed", error?.message);
     return fail(502, "Could not save. Try again.");
