@@ -12,35 +12,33 @@ const share = $("[data-share]");
 const figure = () => window.ledgerFigure;
 
 const LABEL = {
-  cellular_module: "LTE modem",
-  extra_mcu: "Extra MCU",
-  esim: "eSIM",
-  extra_board: "Extra board",
-  antenna_socket: "Antenna socket",
-  coax_cable: "Coax cable",
+  added_wires: "Added wires",
+  antenna_cable: "Antenna cable",
   antenna_in_case: "Antenna in case",
-  power_tap_wires: "Tap wires",
-  rework_or_glue: "Rework / glue",
-  non_genuine_board: "Non-original board",
-  non_genuine_battery: "Non-original battery",
-  unknown_component: "Unknown part",
+  stacked_board: "Extra board",
+  cellular_module: "LTE module",
 };
-const VIEW = {
-  open_device: "the opened device",
-  board_top: "board, top",
-  board_bottom: "board, bottom",
-  case_inside: "inside of case",
-  battery: "battery",
-  screen_back: "back of screen",
-  chip_closeup: "chip markings, close",
-  sharper_photo: "sharper photos",
+// Which parts of the figure each sign lights up.
+const PARTS = {
+  added_wires: ["power_tap_wires"],
+  antenna_cable: ["coax_cable", "antenna_socket"],
+  antenna_in_case: ["antenna_in_case"],
+  stacked_board: ["extra_board", "extra_mcu", "esim"],
+  cellular_module: ["cellular_module"],
 };
-const DEVICE = { nano_s: "Nano S", nano_s_plus: "Nano S Plus", nano_x: "Nano X", stax: "Stax", flex: "Flex", nano_gen5: "Nano Gen5", other_wallet: "Wallet", not_a_wallet: "Not a wallet", unknown: "" };
+const RETAKE = {
+  open_device: "Open the device and photograph the inside.",
+  remove_screen: "Take the screen off the board: flip up the small latch on its connector, lift the screen away, and photograph the bare board.",
+  remove_battery: "Take the battery off the board and photograph the bare board under it.",
+  show_board: "Photograph the main board, both sides.",
+  show_case_inside: "Also photograph the inside of the case.",
+  sharper_photo: "Take sharper, closer photos in good light.",
+};
+const DEVICE = { nano_s: "Nano S", nano_s_plus: "Nano S Plus", nano_x: "Nano X", stax: "Stax", flex: "Flex", nano_gen5: "Nano Gen5", other_wallet: "Wallet", not_a_wallet: "", unknown: "" };
 const VERDICT = {
-  tampered: { title: "Tampered", icon: "alert", mode: "tampered", advice: "Do not use it. Treat its seed as exposed: move funds to a new seed made on a device bought from ledger.com. Report it to Ledger and the seller." },
-  suspicious: { title: "Suspicious", icon: "alert", mode: "tampered", advice: "Do not use it until an expert has looked at it." },
-  no_implant_seen: { title: "No implant seen", icon: "check", mode: "clean", advice: "No added hardware visible. Also run the Genuine Check in Ledger Live." },
-  cannot_tell: { title: "Can't tell", icon: "help", mode: "unclear", advice: "" },
+  implant_found: { title: "Implant found", icon: "alert", mode: "tampered", readout: "implant found", advice: "Don't use this device. Treat its recovery phrase as exposed: move your funds to a new phrase made on a device bought from ledger.com, and report it to Ledger and the seller." },
+  no_implant_seen: { title: "No implant found", icon: "check", mode: "clean", readout: "no implant", advice: "" },
+  incomplete: { title: "One more photo", icon: "camera", mode: "unclear", readout: "needs a photo", advice: "" },
 };
 
 let photos = []; // { url, data } data = shrunk data URL
@@ -130,7 +128,7 @@ go.addEventListener("click", async () => {
 
 function showError(message) {
   result.hidden = false;
-  $("[data-verdict]").dataset.v = "cannot_tell";
+  $("[data-verdict]").dataset.v = "incomplete";
   $("[data-verdict-icon]").innerHTML = icon("help");
   $("[data-verdict-title]").innerHTML = `<span class="error">${escape(message)}</span>`;
   $("[data-confidence]").textContent = "";
@@ -142,32 +140,30 @@ function showError(message) {
 }
 
 function show(r, sent) {
-  const v = VERDICT[r.verdict] || VERDICT.cannot_tell;
+  const v = VERDICT[r.verdict] || VERDICT.incomplete;
   const codes = [...new Set(r.findings.map((f) => f.code))];
-  const device = DEVICE[r.device] || "";
-  const label = [device, r.verdict === "no_implant_seen" ? "no implant seen" : r.verdict === "cannot_tell" ? "can't tell" : `${codes.length} sign${codes.length === 1 ? "" : "s"}`].filter(Boolean).join(" · ");
+  const label = [DEVICE[r.device], v.readout].filter(Boolean).join(" · ");
   const drawn = { nano_x: "nano_x", stax: "stax", flex: "stax", nano_gen5: "stax" }[r.device];
   if (drawn) figure()?.show(drawn);
-  figure()?.setMode(v.mode, { finds: codes, label });
+  figure()?.setMode(v.mode, { finds: codes.flatMap((code) => PARTS[code] || []), label });
 
   result.hidden = false;
   $("[data-verdict]").dataset.v = r.verdict;
   $("[data-verdict-icon]").innerHTML = icon(v.icon);
   $("[data-verdict-title]").textContent = v.title;
-  $("[data-confidence]").textContent = r.confidence + " confidence";
+  $("[data-confidence]").textContent = r.verdict === "incomplete" ? "" : r.confidence + " confidence";
   $("[data-finds]").innerHTML = codes
     .map((code) => {
       const notes = r.findings.filter((f) => f.code === code).map((f) => f.detail).filter(Boolean).join("; ");
       return `<li><button type="button" data-code="${code}" aria-pressed="false" title="${escape(notes)}">${escape(LABEL[code] || code)}</button></li>`;
     })
     .join("");
-  const sku = r.antenna_sku ? ` Antenna: ${r.antenna_sku}.` : "";
+  const sku = r.antenna_sku ? ` Antenna label: ${r.antenna_sku}.` : "";
   $("[data-advice]").innerHTML = `${escape(r.summary + sku)}${v.advice ? `<b>${escape(v.advice)}</b>` : ""}`;
 
-  const boxed = new Set(r.findings.filter((f) => f.box.length).map((f) => f.photo));
+  // Photos only where there is something to point at.
   $("[data-shots]").innerHTML = sent
     .map((data, i) => {
-      if (codes.length && !boxed.has(i + 1)) return "";
       const boxes = r.findings
         .filter((f) => f.photo === i + 1 && f.box.length === 4)
         .map((f) => {
@@ -175,13 +171,15 @@ function show(r, sent) {
           return `<div class="box" data-code="${f.code}" style="left:${x0}%;top:${y0}%;width:${x1 - x0}%;height:${y1 - y0}%"><span>${escape(LABEL[f.code] || f.code)}</span></div>`;
         })
         .join("");
-      return `<figure class="shot"><img src="${data}" alt="Photo ${i + 1}">${boxes}</figure>`;
+      return boxes ? `<figure class="shot"><img src="${data}" alt="Photo ${i + 1}">${boxes}</figure>` : "";
     })
     .join("");
 
   const need = $("[data-need]");
-  need.hidden = !r.missing_views.length;
-  need.innerHTML = r.missing_views.length ? `${icon("camera")} ${r.missing_views.map((v) => `<b>${escape(VIEW[v] || v)}</b>`).join(" · ")}` : "";
+  const steps = r.retake.map((step) => RETAKE[step]).filter(Boolean);
+  need.hidden = !steps.length;
+  need.innerHTML = steps.length ? `${icon("camera")}<ol>${steps.map((step) => `<li>${escape(step)}</li>`).join("")}</ol>` : "";
+  need.toggleAttribute("data-main", r.verdict === "incomplete");
 
   share.hidden = false;
   delete share.dataset.done;

@@ -177,10 +177,9 @@ button,select,input{font:inherit;color:inherit}
 .verdict-mark .ic{width:24px;height:24px}
 .verdict h2{margin:0;font-size:26px;line-height:1.1;font-weight:650;letter-spacing:-.01em}
 .confidence{margin-left:auto;color:var(--anatomy-muted);font-family:var(--anatomy-mono);font-size:11px;text-transform:uppercase;letter-spacing:.1em}
-.verdict[data-v="tampered"]{color:var(--anatomy-red)}
-.verdict[data-v="suspicious"]{color:#f5a524}
+.verdict[data-v="implant_found"]{color:var(--anatomy-red)}
 .verdict[data-v="no_implant_seen"]{color:var(--anatomy-green)}
-.verdict[data-v="cannot_tell"]{color:var(--anatomy-muted)}
+.verdict[data-v="incomplete"]{color:var(--anatomy-strong)}
 .finds{display:flex;flex-wrap:wrap;gap:8px;margin:0;padding:0;list-style:none}
 .finds:empty{display:none}
 .finds button{display:inline-flex;align-items:center;gap:7px;padding:5px 10px;border:1px solid var(--anatomy-red);background:transparent;color:var(--anatomy-strong);font-size:13px;cursor:pointer}
@@ -193,9 +192,10 @@ button,select,input{font:inherit;color:inherit}
 .shot img{width:100%;height:auto;display:block}
 .box{position:absolute;border:2px solid var(--anatomy-red);border-radius:3px;box-shadow:0 0 0 1px #0008;pointer-events:none;transition:box-shadow .2s}
 .box[data-focus]{box-shadow:0 0 0 1px #0008,0 0 0 4px color-mix(in srgb,var(--anatomy-red) 45%,transparent)}
-.box span{position:absolute;left:-2px;bottom:100%;padding:1px 5px;background:var(--anatomy-red);color:#fff;font:600 10px/1.5 var(--anatomy-mono);white-space:nowrap;text-transform:uppercase;letter-spacing:.06em}
-.need{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:0;color:var(--anatomy-muted)}
-.need b{color:var(--anatomy-strong);font-weight:500}
+.box span{display:none;position:absolute;left:-2px;bottom:100%;padding:1px 5px;background:var(--anatomy-red);color:#fff;font:600 10px/1.5 var(--anatomy-mono);white-space:nowrap;text-transform:uppercase;letter-spacing:.06em}
+.need{display:flex;align-items:flex-start;gap:10px;margin:0;color:var(--anatomy-text)}
+.need ol{margin:0;padding-left:18px;display:grid;gap:4px}
+.need[data-main]{padding:14px 16px;background:var(--anatomy-card);box-shadow:0 0 0 1px var(--anatomy-mid);color:var(--anatomy-strong);font-size:16px}
 .share{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:14px;background:var(--anatomy-card);box-shadow:0 0 0 1px var(--anatomy-lo)}
 .share select,.share input{min-width:0;flex:1 1 140px;padding:8px 10px;border:1px solid var(--anatomy-lo);background:var(--anatomy-page)}
 .share-go{display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border:1px solid var(--anatomy-hi);background:transparent;cursor:pointer;font-weight:600;color:var(--anatomy-strong)}
@@ -211,6 +211,7 @@ button,select,input{font:inherit;color:inherit}
 .models button[aria-selected="true"]{background:var(--anatomy-card);color:var(--anatomy-strong);border-color:var(--anatomy-mid)}
 .iso-stage[hidden]{display:none}
 .lg-flex>.iso-top{fill:color-mix(in srgb,#c8823a 14%,var(--anatomy-top))}
+.box[data-focus] span{display:block}
 </style>
 </head>
 <body class="iso">
@@ -231,7 +232,7 @@ button,select,input{font:inherit;color:inherit}
     <label class="drop" data-drop>
       <input type="file" accept="image/*" multiple hidden data-files>
       <svg class="ic" aria-hidden="true"><use href="#i-camera"/></svg>
-      <span class="drop-shots" aria-label="What to photograph"><span>board, both sides</span><span>inside of case</span><span>battery</span></span>
+      <span class="drop-shots" aria-label="What to photograph"><span>screen or battery off</span><span>bare board</span><span>inside of case</span></span>
     </label>
     <ol class="thumbs" data-thumbs></ol>
     <button class="go" type="button" data-go disabled>Check</button>

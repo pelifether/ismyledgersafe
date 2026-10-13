@@ -145,7 +145,7 @@ const body = `${ICONS}
     <label class="drop" data-drop>
       <input type="file" accept="image/*" multiple hidden data-files>
       ${icon("camera")}
-      <span class="drop-shots" aria-label="What to photograph"><span>board, both sides</span><span>inside of case</span><span>battery</span></span>
+      <span class="drop-shots" aria-label="What to photograph"><span>screen or battery off</span><span>bare board</span><span>inside of case</span></span>
     </label>
     <ol class="thumbs" data-thumbs></ol>
     <button class="go" type="button" data-go disabled>Check</button>
