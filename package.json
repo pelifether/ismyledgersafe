@@ -2,7 +2,9 @@
   "name": "ismyledgersafe",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=20.10" },
+  "engines": {
+    "node": ">=20.10"
+  },
   "scripts": {
     "build": "node figure/build.mjs",
     "dev": "node scripts/dev.mjs",
@@ -10,6 +12,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",
-    "@vercel/blob": "^2.8.1"
+    "@vercel/blob": "^2.8.1",
+    "@vercel/functions": "^3.10.0"
   }
 }

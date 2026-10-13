@@ -90,7 +90,7 @@ function mount(cfg) {
       clearTimeout(idleTimer);
       schedule(true);
     },
-    focus(find) { for (const node of svg.querySelectorAll("[data-find]")) node.toggleAttribute("data-focus", node.dataset.find === find); },
+    focus(finds) { for (const node of svg.querySelectorAll("[data-find]")) node.toggleAttribute("data-focus", finds.includes(node.dataset.find)); },
   };
 }
 
@@ -113,17 +113,9 @@ window.ledgerFigure = {
     for (const fig of Object.values(figures)) fig.setMode(mode, finds);
     say(label);
   },
-  focus(find) { for (const fig of Object.values(figures)) fig.focus(find); },
+  focus(finds) { for (const fig of Object.values(figures)) fig.focus([].concat(finds || [])); },
 };
 `;
-
-const figure = k.plateHtml({
-  fig: "Nano X",
-  title: "",
-  hint: "Tap to open",
-  readout: "spyware build",
-  body: FIGURES.map((cfg, index) => `<div class="iso-stage" data-device="${cfg.id}" tabindex="0" role="button" aria-pressed="false" data-mode="idle" aria-label="Exploded Ledger ${cfg.title}. Press to open or close."${index ? " hidden" : ""}>${cfg.figure()}</div>`).join(""),
-});
 
 const icon = (name) => `<svg class="ic" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 const ICONS = `<svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -136,19 +128,80 @@ const ICONS = `<svg width="0" height="0" style="position:absolute" aria-hidden="
 <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
 </svg>`;
 
-const body = `${ICONS}
+// Every word on the page, per language. Visitors from Brazil and Portugal get
+// pt.html (see middleware.js); everyone else index.html.
+const T = {
+  en: {
+    lang: "en",
+    title: "Is my Ledger safe?",
+    description: "Post a photo of your opened Ledger. Get a quick visual check for an implanted spy board.",
+    hint: "Tap to open",
+    idle: "spyware build",
+    device: "Device",
+    stage: (name) => `Exploded Ledger ${name}. Press to open or close.`,
+    photos: "Photos",
+    shoot: "What to photograph",
+    shots: ["screen or battery off", "bare board", "inside of case"],
+    check: "Check",
+    share: "Share for research",
+    from: "Bought from",
+    fromAny: "Bought from…",
+    sources: [["ledger.com", "ledger.com"], ["amazon", "Amazon"], ["retail_store", "Retail store"], ["authorized_reseller", "Authorized reseller"], ["marketplace", "Marketplace / other seller"], ["second_hand", "Second hand"], ["gift_other", "Gift / other"]],
+    country: "Country",
+    when: "When",
+    whenAny: "When…",
+    shareNote: "Photos + result. No personal data.",
+    foot: "Visual check only; firmware is not inspected. Photos go to Anthropic's API for the check and are not kept here unless you share them.",
+    other: ["Português", "/?lang=pt", "pt"],
+  },
+  pt: {
+    lang: "pt-BR",
+    title: "Meu Ledger é seguro?",
+    description: "Envie uma foto do seu Ledger aberto. Receba uma verificação visual rápida de placa espiã implantada.",
+    hint: "Toque para abrir",
+    idle: "versão com espião",
+    device: "Aparelho",
+    stage: (name) => `Ledger ${name} desmontado. Toque para abrir ou fechar.`,
+    photos: "Fotos",
+    shoot: "O que fotografar",
+    shots: ["sem tela ou bateria", "placa exposta", "interior da carcaça"],
+    check: "Verificar",
+    share: "Compartilhar para pesquisa",
+    from: "Comprado em",
+    fromAny: "Comprado em…",
+    sources: [["ledger.com", "ledger.com"], ["amazon", "Amazon"], ["retail_store", "Loja física"], ["authorized_reseller", "Revendedor autorizado"], ["marketplace", "Marketplace / outro vendedor"], ["second_hand", "Usado"], ["gift_other", "Presente / outro"]],
+    country: "País",
+    when: "Quando",
+    whenAny: "Quando…",
+    shareNote: "Fotos + resultado. Sem dados pessoais.",
+    foot: "Verificação apenas visual; o firmware não é inspecionado. As fotos vão para a API da Anthropic para a verificação e não ficam guardadas aqui, a menos que você as compartilhe.",
+    other: ["English", "/?lang=en", "en"],
+  },
+};
+
+const chevron = `<svg class="ic chev" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+function page(t) {
+  const figure = k.plateHtml({
+    fig: "Nano X",
+    title: "",
+    hint: t.hint,
+    readout: t.idle,
+    body: FIGURES.map((cfg, index) => `<div class="iso-stage" data-device="${cfg.id}" tabindex="0" role="button" aria-pressed="false" data-mode="idle" aria-label="${t.stage(cfg.title)}"${index ? " hidden" : ""}>${cfg.figure()}</div>`).join(""),
+  });
+  const body = `${ICONS}
 <main class="page">
-  <header class="top"><h1>Is my Ledger safe?</h1></header>
-  <div class="models" role="tablist" aria-label="Device">${FIGURES.map((cfg, index) => `<button type="button" role="tab" data-show="${cfg.id}" aria-selected="${index === 0}">${cfg.title}</button>`).join("")}</div>
+  <header class="top"><h1>${t.title}</h1></header>
+  <div class="models" role="tablist" aria-label="${t.device}">${FIGURES.map((cfg, index) => `<button type="button" role="tab" data-show="${cfg.id}" aria-selected="${index === 0}">${cfg.title}</button>`).join("")}</div>
   ${figure}
-  <section class="intake" aria-label="Photos">
+  <section class="intake" aria-label="${t.photos}">
     <label class="drop" data-drop>
       <input type="file" accept="image/*" multiple hidden data-files>
       ${icon("camera")}
-      <span class="drop-shots" aria-label="What to photograph"><span>screen or battery off</span><span>bare board</span><span>inside of case</span></span>
+      <span class="drop-shots" aria-label="${t.shoot}">${t.shots.map((shot) => `<span>${shot}</span>`).join("")}</span>
     </label>
     <ol class="thumbs" data-thumbs></ol>
-    <button class="go" type="button" data-go disabled>Check</button>
+    <button class="go" type="button" data-go disabled>${t.check}</button>
   </section>
   <section class="result" data-result hidden aria-live="polite">
     <div class="verdict" data-verdict>
@@ -159,49 +212,51 @@ const body = `${ICONS}
     <ul class="finds" data-finds></ul>
     <p class="advice" data-advice></p>
     <div class="shots" data-shots></div>
-    <p class="need" data-need hidden></p>
+    <div class="need" data-need hidden></div>
     <form class="share" data-share>
-      <button type="submit" class="share-go">${icon("flask")}<span>Share for research</span></button>
-      <select name="bought_from" aria-label="Bought from">
-        <option value="">Bought from…</option>
-        <option value="ledger.com">ledger.com</option>
-        <option value="amazon">Amazon</option>
-        <option value="retail_store">Retail store</option>
-        <option value="authorized_reseller">Authorized reseller</option>
-        <option value="marketplace">Marketplace / other seller</option>
-        <option value="second_hand">Second hand</option>
-        <option value="gift_other">Gift / other</option>
-      </select>
-      <input name="country" maxlength="40" placeholder="Country" aria-label="Country of purchase" autocomplete="country-name">
-      <input name="bought_on" inputmode="numeric" maxlength="7" pattern="\\d{4}-\\d{2}" placeholder="Bought YYYY-MM" aria-label="Month of purchase">
-      <small>Photos + result, no personal data.</small>
+      <div class="share-fields">
+        <label class="field"><span>${t.from}</span><span class="control"><select name="bought_from"><option value="">${t.fromAny}</option>${t.sources.map(([value, name]) => `<option value="${value}">${name}</option>`).join("")}</select>${chevron}</span></label>
+        <label class="field"><span>${t.country}</span><span class="control"><select name="country" data-countries><option value="">${t.country}…</option></select>${chevron}</span></label>
+        <label class="field"><span>${t.when}</span><span class="control"><select name="bought_on" data-months><option value="">${t.whenAny}</option></select>${chevron}</span></label>
+      </div>
+      <div class="share-row">
+        <button type="submit" class="share-go">${icon("flask")}<span>${t.share}</span></button>
+        <small>${t.shareNote}</small>
+      </div>
     </form>
   </section>
-  <footer class="foot">Visual check only. Firmware is not inspected.</footer>
+  <footer class="foot"><p>${t.foot}</p><a href="${t.other[1]}" hreflang="${t.other[2]}" data-lang="${t.other[2]}">${t.other[0]}</a></footer>
 </main>`;
-
-const PAGE_CSS = readFileSync(join(HERE, "page.css"), "utf8");
-const html = `<!doctype html>
-<html lang="en">
+  return `<!doctype html>
+<html lang="${t.lang}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Is my Ledger safe?</title>
-<meta name="description" content="Post a photo of your opened hardware wallet. Get a quick visual check for implanted spyware hardware.">
+<title>${t.title}</title>
+<meta name="description" content="${t.description}">
 <meta name="theme-color" content="#0b0b0b">
+<meta name="referrer" content="no-referrer">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<script>document.documentElement.dataset.theme = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";</script>
-<style>${k.ISO_CSS}${PAGE_CSS}</style>
+<link rel="alternate" hreflang="en" href="/?lang=en">
+<link rel="alternate" hreflang="pt-BR" href="/?lang=pt">
+<style>${CSS}</style>
 </head>
 <body class="iso">
 ${body}
-<script>document.body.dataset.theme = document.documentElement.dataset.theme;</script>
-<script type="module">${(kitScript() + live).replace(/<\/(script)/gi, "<\\/$1")}</script>
+<script type="module" src="/figure.js"></script>
 <script type="module" src="/app.js"></script>
 </body>
 </html>
 `;
+}
+
+// Light theme by media query instead of a script, so the page runs no inline
+// script and the Content-Security-Policy can forbid them.
+const light = /\.iso\[data-theme="light"\]\{([^}]*)\}/.exec(k.ISO_CSS)[1];
+const CSS = k.ISO_CSS + `@media (prefers-color-scheme: light){.iso{${light}}}` + readFileSync(join(HERE, "page.css"), "utf8");
 
 mkdirSync(OUT, { recursive: true });
-writeFileSync(join(OUT, "index.html"), html);
-console.log("wrote public/index.html", (html.length / 1024).toFixed(0) + " KB");
+writeFileSync(join(OUT, "figure.js"), kitScript() + live);
+writeFileSync(join(OUT, "index.html"), page(T.en));
+writeFileSync(join(OUT, "pt.html"), page(T.pt));
+console.log("wrote public/index.html, public/pt.html, public/figure.js");

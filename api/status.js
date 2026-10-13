@@ -1,5 +1,6 @@
-// GET /api/status: whether the checker and storage are set up, and today's use
-// of the daily limits. Calls no model.
+// GET /api/status: whether the checker, storage and receipts are set up, and
+// how many of today's checks the caller has used. Calls no model and shows
+// nothing about other visitors.
 import { json } from "../lib/http.js";
 import { storageReady, usage } from "../lib/quota.js";
 
@@ -9,8 +10,14 @@ export async function GET(request) {
   try {
     limits = await usage(request);
   } catch (e) {
-    error = "storage unreachable";
+    error = "unavailable";
     console.error("status failed", e?.message);
   }
-  return json({ checker: Boolean(process.env.ANTHROPIC_API_KEY), storage: storageReady(), receipts: Boolean(process.env.RECEIPT_SECRET), limits, ...(error ? { error } : {}) });
+  return json({
+    checker: Boolean(process.env.ANTHROPIC_API_KEY),
+    storage: storageReady(),
+    receipts: !process.env.RECEIPT_SECRET ? false : process.env.RECEIPT_SECRET.length >= 16 ? true : "weak",
+    limits,
+    ...(error ? { error } : {}),
+  });
 }
