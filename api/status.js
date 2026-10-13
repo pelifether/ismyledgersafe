@@ -1,5 +1,5 @@
 // GET /api/status: whether the checker, storage and receipts are set up, and
-// how many of today's checks the caller has used. Calls no model and shows
+// today's use: the caller's own and the site total. Calls no model and shows
 // nothing about other visitors.
 import { json } from "../lib/http.js";
 import { storageReady, usage } from "../lib/quota.js";

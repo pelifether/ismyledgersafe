@@ -42,7 +42,7 @@ Verdicts: `tampered`, `suspicious`, `no_implant_seen` (never "safe": this is a v
 - bursts: more than 8 checks in 10 minutes from one IP on one function instance;
 - more than `DAILY_CHECKS_PER_VISITOR` (default 5) checks a day from one IP, and more than `DAILY_CHECKS` (default 100) a day across the site. These are counted in the Blob store under `usage/<day>/<visitor>/` (the visitor is a salted hash of the IP, never the IP), so they hold across all instances.
 
-Invalid requests are rejected before they count. `GET /api/status` shows whether everything is set up and how many of today's checks the caller has used, without calling the model. For more, add a rate-limit rule on `/api/check` in Vercel → Firewall, and turn on Attack Challenge Mode there if the site is ever flooded.
+Invalid requests are rejected before they count. `GET /api/status` shows whether everything is set up and today's use (the caller's and the site total), without calling the model. For more, add a rate-limit rule on `/api/check` in Vercel → Firewall, and turn on Attack Challenge Mode there if the site is ever flooded.
 
 To see if a deploy is set up: `curl https://ismyledgersafe.vercel.app/api/status` should show `"checker":true,"storage":true`.
 
